@@ -1,0 +1,77 @@
+---
+title: "Blindspot"
+author: "Wanlin Ji"
+date: "5/16/2017"
+output: pdf_document
+---
+
+## 0. Test the integrity of data
+
+```{r message =FALSE}
+# Alert: Running this chunk would risk deleting all the previous data in RStudio environment.
+library(mosaic)
+library(lattice)
+rm(list = ls())
+setwd('/Users/jiwanlin/Desktop/Statistical-Models-Method') # Set this url to new working directory if needed.
+mxm <- read.csv('mxm.csv')
+sapply(mxm, function(x) sum(is.na(x)))
+```
+
+
+## 1. Exploratory analysis
+
+```{r}
+summary(mxm)
+```
+
+
+```{r}
+favstats(~ Rating, data=mxm)
+# Test for density curve
+hist(mxm$Rating, freq=F,  xlab = "Rating", col="cyan", main="The rating distribution curve")
+rug(jitter(mxm$Rating))  
+lines(density(mxm$Rating), col="purple", lwd=2)
+```
+
+```{r}
+favstats(~ Total_Loss_perc, data=mxm)
+# Test for density curve
+hist(mxm$Total_Loss_perc, freq=F,  xlab = "Loss percentage for TV series", col="cyan", main="The Loss percentage distribution curve")
+rug(jitter(mxm$Total_Loss_perc))
+lines(density(mxm$Total_Loss_perc), col="purple", lwd=2)
+```
+
+
+```{r}
+ggplot(mxm, aes(x = X, y = Total_Loss_perc)) + geom_area(colour = "black", 
+    fill = "blue", alpha = 0.2)
+
+ggplot(mxm, aes(x = X, y = Rating)) + geom_area(colour = "black", 
+    fill = "blue", alpha = 0.2)
+```
+
+```{r}
+# For the first season
+mxm_test <- subset(mxm, Date == "2016-05-23", 
+select=c(X, Rating, Total_Loss_perc))
+
+tail(mxm_test, 7)
+
+mxm1 <- subset(mxm,  X <= 1367)
+
+ggplot(mxm1, aes(x = X, y = Total_Loss_perc)) + geom_area(colour = "black", fill = "blue", alpha = 0.2) 
+ggplot(mxm1, aes(x = X, y = Rating)) + geom_area(colour = "black", fill = "blue", alpha = 0.2)
+
+# For the first episode
+mxm11 <- subset(mxm1, Date == "2015-09-21")
+
+ggplot(mxm11, aes(x=X)) + 
+#            geom_point(aes(y = Total_Loss_perc), ) + 
+            geom_line(aes(y = Total_Loss_perc, color="Audience Loss Percentage")) +
+#            geom_point(aes(y = Rating)) + 
+            geom_line(aes(y = Rating, color="Rating"))+
+  geom_point(aes(y = Minute_In_Commercial, color="Ad")) 
+```
+
+
+
