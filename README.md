@@ -1,4 +1,4 @@
-#What is Affecting Total Loss Percentage of Television Audience: An empirical study on series Blindspot
+# What is Affecting Total Loss Percentage of Television Audience: An empirical study on series Blindspot
 
 Wanlin Ji
 
