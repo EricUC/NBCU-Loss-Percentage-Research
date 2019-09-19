@@ -1,0 +1,181 @@
+---
+title: "NBCU Case Study"
+author: "Wanlin Ji"
+date: "5/16/2017"
+output: pdf_document
+---
+
+Hello, I am your data scientist Eric today, and I would like to walk you through my analysis on analyzing panel measurement for this TV show. First, let's start by loading the data and looking for any missing value still remaining. 
+
+## 0. Test the integrity of data
+
+```{r message =FALSE}
+# Alert: Running this chunk would risk deleting all the previous data in RStudio environment.
+library(mosaic)
+library(lattice)
+rm(list = ls())
+setwd('/Users/jiwanlin/Desktop/Statistical-Models-Method') # Set this url to new working directory if needed.
+mxm <- read.csv('mxm.csv')
+tele <- read.csv('seasonal_telecast_ratings.csv')
+sapply(mxm, function(x) sum(is.na(x)))
+sapply(tele, function(x) sum(is.na(x)))
+```
+
+Thanks to our diligent engineers, there is no missing values left and no need to impute the values. Now we can move on to do some exploratory analysis next step.
+
+## 1. Exploratory analysis
+
+```{r}
+summary(mxm)
+summary(tele)
+```
+
+From the summary, we found there are 2088 observations in our measurement, all on the network of DKN and for this program. Since the rating and total_loss_percent are two most variable indicators, these two variables are our focus for analysis. And from real-setting, the ratings and total loss percentages also make sense for predictive or inference purposes.
+
+Let's take a closer look at their patterns of distribution. 
+
+```{r}
+favstats(~ Rating, data=mxm)
+# Test for density curve
+hist(mxm$Rating, freq=F,  xlab = "Rating", col="cyan", main="The rating distribution curve")
+rug(jitter(mxm$Rating))  
+lines(density(mxm$Rating), col="purple", lwd=2)
+```
+
+From the graph, we found the rating is pretty right skewed distributed, looks closer to a Possion distribution and far from normal distribution. If I were the producer, I would love to see it left skewed, for sure. It turns out there are some potential outliers outside the right side of 1.5 IQR, indicating some of the series moments can be very popular. 
+
+```{r}
+favstats(~ Total_Loss_perc, data=mxm)
+# Test for density curve
+hist(mxm$Total_Loss_perc, freq=F,  xlab = "Loss percentage for TV series", col="cyan", main="The Loss percentage distribution curve")
+rug(jitter(mxm$Total_Loss_perc))
+lines(density(mxm$Total_Loss_perc), col="purple", lwd=2)
+```
+
+The loss percentage distribution is even more right skewed. Most of the times the loss proportion is less than 30, but very rarely we can have some moments when around 30 percent of audience are leaving. That is horrible, maybe we will want to specify these outliers and find out the reason later, but let's move on the exploration.
+
+To discover more insights, we need to take a look at how it varies with time and other explanatory variables. Here we take a look at its overall pattern across the overall time.
+
+```{r}
+ggplot(mxm, aes(x = X, y = Total_Loss_perc)) + geom_area(colour = "black", 
+    fill = "blue", alpha = 0.2)
+
+ggplot(mxm, aes(x = X, y = Rating)) + geom_area(colour = "black", 
+    fill = "blue", alpha = 0.2)
+```
+
+Surprise! We found that the loss percentage is clearly repeating its pattern divided by a black line. And if we recall the loss percentage is 0 in the very last minute of every episode, this black line shows that the pattern is largely repeating itself by episode. For the rating, it is deceasing with time and also shows some patterns. But it is less stable, with a downward tendency. 
+
+From the explanatory perspective, loss percentages are time-dependent across three seasons, indicating it is influenced by some time-related factors regularly. Based on that we can decide to use time-series analysis if we want to make some predictions on how a single variable may change in future. 
+
+And we carry out some exploratory analysis on the first season and first episode below to take a closer look on the tendency, figuring out if there is decline even before the finale and its possible influencing factors. 
+
+```{r}
+# For the first season
+mxm_test <- subset(mxm, Date == "2016-05-23", 
+select=c(X, Rating, Total_Loss_perc))
+
+tail(mxm_test, 7)
+
+mxm1 <- subset(mxm,  X <= 1367)
+
+ggplot(mxm1, aes(x = X, y = Total_Loss_perc)) + geom_area(colour = "black", fill = "blue", alpha = 0.2) 
+ggplot(mxm1, aes(x = X, y = Rating)) + geom_area(colour = "black", fill = "blue", alpha = 0.2)
+
+# For the first episode
+mxm11 <- subset(mxm1, Date == "2015-09-21")
+
+ggplot(mxm11, aes(x=X)) + 
+#            geom_point(aes(y = Total_Loss_perc), ) + 
+            geom_line(aes(y = Total_Loss_perc, color="Audience Loss Percentage")) +
+#            geom_point(aes(y = Rating)) + 
+            geom_line(aes(y = Rating, color="Rating"))+
+  geom_point(aes(y = Minute_In_Commercial, color="Ad")) 
+```
+
+By comparing the three major variable, commercial, rating and total loss percentage, we found that the scope can really mislead us. The ratings are not so dramatic as we saw previously. And the pulses responses as well as time-dependence for both the two variables are very clear in this graph. Until now, we have got some solid recognition of our data at hand.
+
+Now let's consider some of the hypothesis from Mr. A as well as our team member. They are paying attention to the rating and loss percentage variations. We may need to pick up a dependent variable that could solve our puzzle. From my perspective, the industry are more concerned with the number of audience, so we should think of the total loss percentage as our primary target here. Note I don't have the number of viewers who join the watching during the show, so it is impossible to analyze the real number of audience, but we can still aim to manage the viewers loss according to the insight from marketing that it is always more expensive to earn a new customer than to prevent losing an old customer. Same go with viewers. 
+
+Next we want to consider other factors that could have an effect on the total loss percentage to find the primary drive behind it. We want to assume the rating stands for the quality of narratives, then we can see the total loss percentage an explanatory variable for analyzing total loss percentage. This seems plausible explanation. But we also may pay attention to the pulse-responses that comes with the total loss percentage, which is largely corresponding to Minute_In_Commercial. 
+
+However, we might want to think deeper as how a viewer could decide to leave (behavior) based on the rating (belief) and other factors. And a feature that it could have is the accumulated effect independent variables may have on dependent variables. In fact, it would be better to obtain individual level data and build a Bayesian model towards the decision making process, but now we want to focus on analyzing the relationship across the time. And considering the fact that I have no idea how the rating is construct as well as the pulses, we may be curious about how the three variables are influencing each other. It all leads us to the Multivariate time-series model, where we can analyze different relationships between sequences.
+
+## 2. Multivariate time-series model
+
+For the rating, it is decreasing with time. For the total loss percentage, it is repeating itself on a episode basis. To carry out analysis, we need to make sure the sequences are stationary. 
+
+### 2.1 Unit Root Test
+
+```{r}
+library(tseries)
+
+adf.test(mxm$Rating)
+adf.test(mxm$Minute_In_Commercial)
+adf.test(mxm$Total_Loss_perc)
+
+pp.test(mxm$Rating)
+pp.test(mxm$Minute_In_Commercial)
+pp.test(mxm$Total_Loss_perc)
+```
+
+We adapted ADF test and Phillips-Perron test, and found that under 0.01 significant level, there p-values are all smaller than the printed p-value. We can see that they all follow AR(0) in the same stage, without the need to make a difference calculation. All the three sequences showed no sign of unit root, and no need for Johansen Co-integration test. Let's move on to the next stage.
+
+### 2.2 Structural VAR
+
+Considering the influence between variables includes the pulses from the same minute as well as time lags, we need to use a SVAR model instead of the usual VAR. To give an estimation of our relationships, we need to specify the Kronecker indices of the data. The Kronecker index approach is used to specify and estimate a VARMA model can be carried out via the MTS package using commands Kronid, Kronfit, and refKronfit, respectively. 
+
+The time lags need to be determined to approximate the past vector $P_{t−1}$ in our computing matrix. Normally we would expect a larger stages setting for time lags in stationary sequences. Here we directly use the default 5 stages.
+
+
+```{r}
+library(MTS)
+
+mxmc <- subset(mxm1, select=c(Minute_In_Commercial, Total_Loss_perc, Rating))
+summary(mxmc)
+Kronid(mxmc)
+```
+
+Then we move on to find the needed feature for the maximum order needed for VARMA model estimation based on the Kronecker indexes we just found out.
+
+```{r}
+kdx <- c(2, 2, 1)
+Kronspec(kdx)
+```
+
+Based on the Kronecker indices, a VARMA(2, 2) model is specified for the data. 2 stands for maximum order in AR feature of the data, and 2 stands for maximum MA order that we just computed. 
+
+#### 2.2 Estimation
+
+A specified VARMA model via Kronecker index we just computed can be estimated by the maximum likelihood method. If some of the estimated parameters are not statistically significant, then one can further refine the model by removing insignificant parameters. However, there exists no unique way to remove insignificant parameters of a fitted VARMA model. But we can adapt an iterated procedure by removing insignificant parameter one at a time, remove the least significant parameter and re-estimate the model. Now we need to estimate 33 parameters in our model. 
+
+```{r}
+m2=Kronfit(mxmc,kdx)
+```
+
+```{r}
+m3=refKronfit(m2,thres=1.6)
+```
+
+
+For this part of analysis, we have the 33 parameters that needs estimation. We usually need a simplificaton function again to narrow down the significant parameters.
+
+As it shows the significance level is pretty concentrated on several coefficient, we can further test the estimation.
+
+```{r message=FALSE}
+MTSdiag(m3)
+```
+
+Awesome! If the result is flooded in the messages, it is like this:
+
+![Final Result](1.png)
+
+From the result we find that Total loss percentage remains in a huge effect of itself, indicating most of the pulse-response is actually the product of time lags. And the Rating has much larger coefficient than Minute_In_Commercial, considering the spread of ratings is much much smaller. So here we are. As our conclusion, we should consider the creative narrative may impose a negative effect on the audience loss. 
+
+
+
+
+
+
+
+
